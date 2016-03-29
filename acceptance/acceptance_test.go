@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -14,7 +15,7 @@ var _ = Describe("AcceptanceTests", func() {
 	BeforeEach(func() {
 		var err error
 
-		serverCmd := exec.Command(pathToBinary, "some-flag")
+		serverCmd := exec.Command(pathToBinary, "--server", "8.8.8.8:53")
 		serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -40,18 +41,18 @@ var _ = Describe("AcceptanceTests", func() {
 
 		// run the client
 		clientCmd := exec.Command("dig", "@127.0.0.1", "-p", "9999", "www.example.com")
-		clientOutput, err := clientCmd.CombinedOutput()
+		clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 
+		Eventually(clientSession).Should(gexec.Exit(0))
+
 		// verify client works
-		Expect(clientOutput).To(ContainSubstring("93.184.216.34"))
-		Expect(clientOutput).To(ContainSubstring(`ANSWER SECTION:
-www.example.com.`))
+		Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nwww.example.com."))
+		Expect(clientSession.Out).To(gbytes.Say("93.184.216.34"))
 
 		// shut down server
 		serverSession.Interrupt()
 		Eventually(serverSession).Should(gexec.Exit(0))
 		serverSession = nil
 	})
-
 })
