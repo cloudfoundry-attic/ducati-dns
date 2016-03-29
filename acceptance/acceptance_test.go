@@ -1,7 +1,6 @@
 package acceptance_test
 
 import (
-	"fmt"
 	"os/exec"
 
 	. "github.com/onsi/ginkgo"
@@ -42,7 +41,6 @@ var _ = Describe("AcceptanceTests", func() {
 		// run the client
 		clientCmd := exec.Command("dig", "@127.0.0.1", "-p", "9999", "www.example.com")
 		clientOutput, err := clientCmd.CombinedOutput()
-		fmt.Println(string(clientOutput))
 		Expect(err).NotTo(HaveOccurred())
 
 		// verify client works
