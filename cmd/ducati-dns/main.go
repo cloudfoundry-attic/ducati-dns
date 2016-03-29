@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
+	"github.com/cloudfoundry-incubator/ducati-dns/runner"
 	"github.com/miekg/dns"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
@@ -22,8 +23,16 @@ func main() {
 		Servers:   []string{server},
 	}
 
+	dnsRunner := &runner.Runner{
+		DNSServer: &dns.Server{
+			Addr:    "127.0.0.1:9999",
+			Net:     "udp",
+			Handler: forwardingResolver,
+		},
+	}
+
 	members := grouper.Members{
-		{"dns_server", forwardingResolver},
+		{"dns_runner", dnsRunner},
 	}
 
 	group := grouper.NewOrdered(os.Interrupt, members)
