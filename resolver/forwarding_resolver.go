@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -27,17 +29,34 @@ type ForwardingResolver struct {
 }
 
 func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
-	for _, server := range h.Servers {
-		resp, _, err := h.Exchanger.Exchange(request, server)
+	r := make(chan *dns.Msg)
+	var wg sync.WaitGroup
+	serverLookup := func(nameserver string) {
+		resp, _, err := h.Exchanger.Exchange(request, nameserver)
 		if err != nil {
-			panic(err)
+			fmt.Errorf("Exchange err: %s", err)
+			wg.Done()
+			return
 		}
-		w.WriteMsg(resp)
-		return
+		wg.Done()
+		r <- resp
 	}
 
-	m := &dns.Msg{}
-	m.SetReply(request)
-	m.SetRcode(request, dns.RcodeNameError)
-	w.WriteMsg(m)
+	for _, server := range h.Servers {
+		go serverLookup(server)
+		wg.Add(1)
+	}
+
+	wg.Wait()
+	select {
+	case resp := <-r:
+		w.WriteMsg(resp)
+		return
+	default:
+		m := &dns.Msg{}
+		m.SetReply(request)
+		m.SetRcode(request, dns.RcodeNameError)
+		w.WriteMsg(m)
+		return
+	}
 }

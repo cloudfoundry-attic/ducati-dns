@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"errors"
 	"time"
 
 	"github.com/cloudfoundry-incubator/ducati-dns/fakes"
@@ -66,6 +67,37 @@ var _ = Describe("ForwardingResolver", func() {
 
 			response := responseWriter.WriteMsgArgsForCall(0)
 			Expect(response).To(Equal(expectedResponse))
+		})
+	})
+
+	Context("when at least one of several forwarded requests returns a response", func() {
+		var fakeExchanger *fakes.Exchanger
+
+		BeforeEach(func() {
+			fakeExchanger = &fakes.Exchanger{}
+			forwardingResolver = &resolver.ForwardingResolver{
+				Servers:   []string{"1.2.3.4:53", "2.3.4.5:53"},
+				Exchanger: fakeExchanger,
+			}
+		})
+
+		It("writes the response", func() {
+			expectedResponse := &dns.Msg{}
+			expectedResponse.SetReply(request)
+			fakeExchanger.ExchangeStub = func(m *dns.Msg, a string) (*dns.Msg, time.Duration, error) {
+				if a == "2.3.4.5:53" {
+					return expectedResponse, 99 * time.Second, nil
+				} else {
+					return &dns.Msg{}, 99 * time.Second, errors.New("server fail")
+				}
+			}
+
+			forwardingResolver.ServeDNS(responseWriter, request)
+
+			Eventually(responseWriter.WriteMsgCallCount()).Should(Equal(1))
+
+			response := responseWriter.WriteMsgArgsForCall(0)
+			Eventually(response).Should(Equal(expectedResponse))
 		})
 	})
 })

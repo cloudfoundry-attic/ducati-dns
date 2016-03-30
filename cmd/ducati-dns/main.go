@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
@@ -13,14 +15,27 @@ import (
 	"github.com/tedsuo/ifrit/sigmon"
 )
 
+type servers []string
+
+func (s *servers) String() string {
+	return fmt.Sprint(*s)
+}
+
+func (s *servers) Set(value string) error {
+	for _, server := range strings.Split(value, ",") {
+		*s = append(*s, server)
+	}
+	return nil
+}
+
 func main() {
-	var server string
-	flag.StringVar(&server, "server", "", "")
+	var serverList servers
+	flag.Var(&serverList, "server", "")
 	flag.Parse()
 
 	forwardingResolver := &resolver.ForwardingResolver{
 		Exchanger: &dns.Client{Net: "udp"},
-		Servers:   []string{server},
+		Servers:   serverList,
 	}
 
 	dnsRunner := &runner.Runner{
