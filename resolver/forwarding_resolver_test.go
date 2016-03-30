@@ -9,6 +9,8 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("ForwardingResolver", func() {
@@ -16,88 +18,57 @@ var _ = Describe("ForwardingResolver", func() {
 		forwardingResolver *resolver.ForwardingResolver
 		responseWriter     *fakes.ResponseWriter
 		request            *dns.Msg
+		fakeExchanger      *fakes.Exchanger
+		fakeLogger         *lagertest.TestLogger
 	)
 
 	BeforeEach(func() {
 		request = &dns.Msg{}
 		request.SetQuestion(dns.Fqdn("cloudfoundry.org"), dns.TypeA)
-		forwardingResolver = &resolver.ForwardingResolver{}
+		fakeExchanger = &fakes.Exchanger{}
+		fakeExchanger.ExchangeStub = func(request *dns.Msg, server string) (*dns.Msg, time.Duration, error) {
+			resp := &dns.Msg{}
+			resp.SetReply(request)
+			return resp, 99 * time.Second, nil
+		}
+		fakeLogger = lagertest.NewTestLogger("test")
+		forwardingResolver = &resolver.ForwardingResolver{
+			Server:    "1.2.3.4:53",
+			Exchanger: fakeExchanger,
+			Logger:    fakeLogger,
+		}
 		responseWriter = &fakes.ResponseWriter{}
 	})
 
-	Context("when the resolver is not configured with dns servers", func() {
-		It("responds with the appropriate error", func() {
-			expectedResponse := &dns.Msg{}
-			expectedResponse.SetReply(request)
-			expectedResponse.SetRcode(request, dns.RcodeNameError)
+	It("forwards the request to the server", func() {
+		forwardingResolver.ServeDNS(responseWriter, request)
 
-			forwardingResolver.ServeDNS(responseWriter, request)
-			Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
+		Expect(fakeExchanger.ExchangeCallCount()).To(Equal(1))
 
-			response := responseWriter.WriteMsgArgsForCall(0)
-			Expect(response).To(Equal(expectedResponse))
-		})
+		msg, address := fakeExchanger.ExchangeArgsForCall(0)
+		Expect(msg).To(Equal(request))
+		Expect(address).To(Equal("1.2.3.4:53"))
+
+		Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
+
+		expectedResp := &dns.Msg{}
+		expectedResp.SetReply(request)
+		response := responseWriter.WriteMsgArgsForCall(0)
+		Expect(response).To(Equal(expectedResp))
 	})
 
-	Context("when the resolver is configures with a dns server", func() {
-		var fakeExchanger *fakes.Exchanger
-
+	Context("when the exchanger returns an error", func() {
 		BeforeEach(func() {
-			fakeExchanger = &fakes.Exchanger{}
-			forwardingResolver = &resolver.ForwardingResolver{
-				Servers:   []string{"1.2.3.4:53"},
-				Exchanger: fakeExchanger,
-			}
+			fakeExchanger.ExchangeReturns(nil, 0, errors.New("potato"))
 		})
-
-		It("forwards the request to the server", func() {
-			expectedResponse := &dns.Msg{}
-			expectedResponse.SetReply(request)
-			fakeExchanger.ExchangeReturns(expectedResponse, 99*time.Second, nil)
-
+		It("logs the error", func() {
 			forwardingResolver.ServeDNS(responseWriter, request)
-
-			Expect(fakeExchanger.ExchangeCallCount()).To(Equal(1))
-
-			msg, address := fakeExchanger.ExchangeArgsForCall(0)
-			Expect(msg).To(Equal(request))
-			Expect(address).To(Equal("1.2.3.4:53"))
-
+			Expect(fakeLogger).To(gbytes.Say("test.*potato"))
+		})
+		It("responds with SERVFAIL", func() {
+			forwardingResolver.ServeDNS(responseWriter, request)
 			Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
-
-			response := responseWriter.WriteMsgArgsForCall(0)
-			Expect(response).To(Equal(expectedResponse))
-		})
-	})
-
-	Context("when at least one of several forwarded requests returns a response", func() {
-		var fakeExchanger *fakes.Exchanger
-
-		BeforeEach(func() {
-			fakeExchanger = &fakes.Exchanger{}
-			forwardingResolver = &resolver.ForwardingResolver{
-				Servers:   []string{"1.2.3.4:53", "2.3.4.5:53"},
-				Exchanger: fakeExchanger,
-			}
-		})
-
-		It("writes the response", func() {
-			expectedResponse := &dns.Msg{}
-			expectedResponse.SetReply(request)
-			fakeExchanger.ExchangeStub = func(m *dns.Msg, a string) (*dns.Msg, time.Duration, error) {
-				if a == "2.3.4.5:53" {
-					return expectedResponse, 99 * time.Second, nil
-				} else {
-					return &dns.Msg{}, 99 * time.Second, errors.New("server fail")
-				}
-			}
-
-			forwardingResolver.ServeDNS(responseWriter, request)
-
-			Eventually(responseWriter.WriteMsgCallCount()).Should(Equal(1))
-
-			response := responseWriter.WriteMsgArgsForCall(0)
-			Eventually(response).Should(Equal(expectedResponse))
+			Expect(responseWriter.WriteMsgArgsForCall(0).MsgHdr.Rcode).To(Equal(dns.RcodeServerFailure))
 		})
 	})
 })

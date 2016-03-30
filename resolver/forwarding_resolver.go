@@ -1,11 +1,10 @@
 package resolver
 
 import (
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter -o ../fakes/handler.go --fake-name Handler . handler
@@ -25,38 +24,29 @@ type exchanger interface {
 
 type ForwardingResolver struct {
 	Exchanger exchanger
-	Servers   []string
+	Server    string
+	Logger    lager.Logger
 }
 
 func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
-	r := make(chan *dns.Msg)
-	var wg sync.WaitGroup
-	serverLookup := func(nameserver string) {
-		resp, _, err := h.Exchanger.Exchange(request, nameserver)
-		if err != nil {
-			fmt.Errorf("Exchange err: %s", err)
-			wg.Done()
-			return
-		}
-		wg.Done()
-		r <- resp
-	}
+	resp, _, err := h.Exchanger.Exchange(request, h.Server)
+	if err != nil {
+		h.Logger.Error("Serve DNS Exchange", err)
 
-	for _, server := range h.Servers {
-		go serverLookup(server)
-		wg.Add(1)
-	}
-
-	wg.Wait()
-	select {
-	case resp := <-r:
-		w.WriteMsg(resp)
+		m := &dns.Msg{}
+		m.SetReply(request)
+		m.SetRcode(request, dns.RcodeServerFailure)
+		w.WriteMsg(m)
 		return
-	default:
+	}
+
+	if resp == nil {
 		m := &dns.Msg{}
 		m.SetReply(request)
 		m.SetRcode(request, dns.RcodeNameError)
 		w.WriteMsg(m)
 		return
 	}
+
+	w.WriteMsg(resp)
 }

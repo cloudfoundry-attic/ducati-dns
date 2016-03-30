@@ -5,40 +5,36 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
 	"github.com/miekg/dns"
+	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/sigmon"
 )
 
-type servers []string
-
-func (s *servers) String() string {
-	return fmt.Sprint(*s)
-}
-
-func (s *servers) Set(value string) error {
-	for _, server := range strings.Split(value, ",") {
-		*s = append(*s, server)
-	}
-	return nil
-}
-
 func main() {
-	var serverList servers
-	flag.Var(&serverList, "server", "Comma separted list of DNS servers to forward queries to")
+	var server string
+	flag.StringVar(&server, "server", "", "Single DNS server to forward queries to")
 
 	var listenAddress string
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
 	flag.Parse()
 
+	if server == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: server")
+		os.Exit(1)
+	}
+
+	logger := lager.NewLogger("ducati-dns")
+	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
+
 	forwardingResolver := &resolver.ForwardingResolver{
 		Exchanger: &dns.Client{Net: "udp"},
-		Servers:   serverList,
+		Server:    server,
+		Logger:    logger,
 	}
 
 	dnsRunner := &runner.Runner{

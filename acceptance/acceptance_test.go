@@ -3,7 +3,6 @@ package acceptance_test
 import (
 	"os/exec"
 	"strconv"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -69,15 +68,13 @@ var _ = Describe("AcceptanceTests", func() {
 		})
 	})
 
-	Context("when multiple servers are specified", func() {
+	Context("when the server flag is omitted", func() {
 		BeforeEach(func() {
 			var err error
 
 			serverCmd := exec.Command(
 				pathToBinary,
 				"--listenAddress", "127.0.0.1:"+listenPort,
-				"--server", "1.2.3.4:53",
-				"--server", "8.8.8.8:53",
 			)
 			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -90,24 +87,47 @@ var _ = Describe("AcceptanceTests", func() {
 			}
 		})
 
-		It("will try multiple dns servers", func() {
+		It("should exit and log an error", func() {
+			Eventually(serverSession).Should(gexec.Exit(1))
+			Expect(serverSession.Err.Contents()).To(ContainSubstring("missing required arg"))
+		})
+	})
+
+	Context("when the server for forwarding is unavailable", func() {
+		BeforeEach(func() {
+			var err error
+
+			serverCmd := exec.Command(
+				pathToBinary,
+				"--listenAddress", "127.0.0.1:"+listenPort,
+				"--server", "127.0.0.1:98765",
+			)
+			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			if serverSession != nil {
+				serverSession.Interrupt()
+				Eventually(serverSession).Should(gexec.Exit())
+			}
+		})
+
+		It("logs the resulting errors but keeps running", func() {
 			Consistently(serverSession).ShouldNot(gexec.Exit())
 
 			// run the client
 			clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "www.example.com")
 			clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(clientSession, 4*time.Second, 50*time.Millisecond).Should(gexec.Exit(0))
+			Eventually(clientSession).Should(gexec.Exit(0)) // dig is ok with a SERVFAIL
 
 			// verify client works
-			Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nwww.example.com."))
-			Expect(clientSession.Out).To(gbytes.Say("93.184.216.34"))
+			Expect(clientSession.Out).To(gbytes.Say("SERVFAIL"))
 
-			// shut down server
-			serverSession.Interrupt()
-			Eventually(serverSession).Should(gexec.Exit(0))
-			serverSession = nil
+			// server is still up
+			Consistently(serverSession).ShouldNot(gexec.Exit())
+			Expect(serverSession.Out.Contents()).To(ContainSubstring("Serve DNS Exchange"))
 		})
 	})
 })
