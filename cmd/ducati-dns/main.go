@@ -30,7 +30,10 @@ func (s *servers) Set(value string) error {
 
 func main() {
 	var serverList servers
-	flag.Var(&serverList, "server", "")
+	flag.Var(&serverList, "server", "Comma separted list of DNS servers to forward queries to")
+
+	var listenAddress string
+	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
 	flag.Parse()
 
 	forwardingResolver := &resolver.ForwardingResolver{
@@ -40,7 +43,7 @@ func main() {
 
 	dnsRunner := &runner.Runner{
 		DNSServer: &dns.Server{
-			Addr:    "127.0.0.1:9999",
+			Addr:    listenAddress,
 			Net:     "udp",
 			Handler: forwardingResolver,
 		},

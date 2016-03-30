@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"os/exec"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -12,12 +13,21 @@ import (
 
 var _ = Describe("AcceptanceTests", func() {
 	var serverSession *gexec.Session
+	var listenPort string
+
+	BeforeEach(func() {
+		listenPort = strconv.Itoa(11999 + GinkgoParallelNode())
+	})
 
 	Context("when only one server is specified", func() {
 		BeforeEach(func() {
 			var err error
 
-			serverCmd := exec.Command(pathToBinary, "--server", "8.8.8.8:53")
+			serverCmd := exec.Command(
+				pathToBinary,
+				"--listenAddress", "127.0.0.1:"+listenPort,
+				"--server", "8.8.8.8:53",
+			)
 			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -42,7 +52,7 @@ var _ = Describe("AcceptanceTests", func() {
 			Consistently(serverSession).ShouldNot(gexec.Exit())
 
 			// run the client
-			clientCmd := exec.Command("dig", "@127.0.0.1", "-p", "9999", "www.example.com")
+			clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "www.example.com")
 			clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -63,7 +73,12 @@ var _ = Describe("AcceptanceTests", func() {
 		BeforeEach(func() {
 			var err error
 
-			serverCmd := exec.Command(pathToBinary, "--server", "1.2.3.4:53", "--server", "8.8.8.8:53")
+			serverCmd := exec.Command(
+				pathToBinary,
+				"--listenAddress", "127.0.0.1:"+listenPort,
+				"--server", "1.2.3.4:53",
+				"--server", "8.8.8.8:53",
+			)
 			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -74,11 +89,12 @@ var _ = Describe("AcceptanceTests", func() {
 				Eventually(serverSession).Should(gexec.Exit())
 			}
 		})
+
 		It("will try multiple dns servers", func() {
 			Consistently(serverSession).ShouldNot(gexec.Exit())
 
 			// run the client
-			clientCmd := exec.Command("dig", "@127.0.0.1", "-p", "9999", "www.example.com")
+			clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "www.example.com")
 			clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
