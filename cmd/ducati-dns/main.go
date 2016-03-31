@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
@@ -16,8 +17,15 @@ import (
 )
 
 func main() {
-	var server string
+	var (
+		server       string
+		ducatiSuffix string
+		ducatiAPI    string
+	)
+
 	flag.StringVar(&server, "server", "", "Single DNS server to forward queries to")
+	flag.StringVar(&ducatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
+	flag.StringVar(&ducatiAPI, "ducatiAPI", "", "URL for the ducati API")
 
 	var listenAddress string
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
@@ -37,11 +45,20 @@ func main() {
 		Logger:    logger,
 	}
 
+	httpResolver := &resolver.HTTPResolver{}
+	resolverMuxer := dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
+		if strings.HasSuffix(request.Question[0].Name, ducatiSuffix) {
+			httpResolver.ServeDNS(w, request)
+		} else {
+			forwardingResolver.ServeDNS(w, request)
+		}
+	})
+
 	dnsRunner := &runner.Runner{
 		DNSServer: &dns.Server{
 			Addr:    listenAddress,
 			Net:     "udp",
-			Handler: forwardingResolver,
+			Handler: resolverMuxer,
 		},
 	}
 
