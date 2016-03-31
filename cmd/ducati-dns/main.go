@@ -4,8 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 
+	"github.com/cloudfoundry-incubator/ducati-daemon/client"
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
 	"github.com/miekg/dns"
@@ -16,8 +19,15 @@ import (
 )
 
 func main() {
-	var server string
+	var (
+		server       string
+		ducatiSuffix string
+		ducatiAPI    string
+	)
+
 	flag.StringVar(&server, "server", "", "Single DNS server to forward queries to")
+	flag.StringVar(&ducatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
+	flag.StringVar(&ducatiAPI, "ducatiAPI", "", "URL for the ducati API")
 
 	var listenAddress string
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
@@ -25,6 +35,14 @@ func main() {
 
 	if server == "" {
 		fmt.Fprintf(os.Stderr, "missing required arg: server")
+		os.Exit(1)
+	}
+	if ducatiSuffix == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: ducatiSuffix")
+		os.Exit(1)
+	}
+	if ducatiAPI == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: ducatiAPI")
 		os.Exit(1)
 	}
 
@@ -37,11 +55,25 @@ func main() {
 		Logger:    logger,
 	}
 
+	ducatiDaemonClient := client.New(ducatiAPI, http.DefaultClient)
+	httpResolver := &resolver.HTTPResolver{
+		Logger:       logger,
+		Suffix:       ducatiSuffix,
+		DaemonClient: ducatiDaemonClient,
+	}
+	resolverMuxer := dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
+		if strings.HasSuffix(request.Question[0].Name, fmt.Sprintf("%s.", ducatiSuffix)) {
+			httpResolver.ServeDNS(w, request)
+		} else {
+			forwardingResolver.ServeDNS(w, request)
+		}
+	})
+
 	dnsRunner := &runner.Runner{
 		DNSServer: &dns.Server{
 			Addr:    listenAddress,
 			Net:     "udp",
-			Handler: forwardingResolver,
+			Handler: resolverMuxer,
 		},
 	}
 
