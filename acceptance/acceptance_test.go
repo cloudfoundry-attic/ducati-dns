@@ -18,11 +18,30 @@ var _ = Describe("AcceptanceTests", func() {
 	var serverSession *gexec.Session
 	var listenPort string
 	var mockDucatiAPIServer *httptest.Server
+	var mockCCAPIServer *httptest.Server
 
 	BeforeEach(func() {
 		listenPort = strconv.Itoa(11999 + GinkgoParallelNode())
 		mockDucatiAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(`{"container_id": "my-container-id", "IP": "10.11.12.13"}`))
+			if r.URL.Path == "/containers/my-container-id" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"container_id": "my-container-id", "IP": "10.11.12.13"}`))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		mockCCAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/v2/organizations":
+				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-org-guid"},"entity":{"name":"my-org"}}]}`))
+				return
+			case "/v2/spaces":
+				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-space-guid"},"entity":{"name":"my-space"}}]}`))
+				return
+			case "/v2/apps":
+				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-container-id"},"entity":{"name":"my-app"}}]}`))
+				return
+			}
 		}))
 	})
 
@@ -36,6 +55,8 @@ var _ = Describe("AcceptanceTests", func() {
 				"--server", "8.8.8.8:53",
 				"--ducatiSuffix", "potato",
 				"--ducatiAPI", mockDucatiAPIServer.URL,
+				"--ccAPI", mockCCAPIServer.URL,
+				"--uaaClientSecret", "a-secret",
 			)
 			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
@@ -83,14 +104,14 @@ var _ = Describe("AcceptanceTests", func() {
 					Consistently(serverSession).ShouldNot(gexec.Exit())
 
 					// run the client
-					clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "my-container-id.potato")
+					clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "my-app.my-space.my-org.potato")
 					clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 					Expect(err).NotTo(HaveOccurred())
 
 					Eventually(clientSession).Should(gexec.Exit(0))
 
 					// verify client works
-					Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nmy-container-id.potato"))
+					Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nmy-app.my-space.my-org.potato"))
 					Expect(clientSession.Out).To(gbytes.Say("10.11.12.13"))
 				})
 			})

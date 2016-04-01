@@ -9,9 +9,11 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/ducati-daemon/client"
+	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
 	"github.com/miekg/dns"
+	"github.com/pivotal-cf-experimental/rainmaker"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
@@ -23,11 +25,15 @@ func main() {
 		server       string
 		ducatiSuffix string
 		ducatiAPI    string
+		ccClientHost string
+		token        string
 	)
 
 	flag.StringVar(&server, "server", "", "Single DNS server to forward queries to")
 	flag.StringVar(&ducatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
 	flag.StringVar(&ducatiAPI, "ducatiAPI", "", "URL for the ducati API")
+	flag.StringVar(&ccClientHost, "ccAPI", "", "URL for the cloud controller API")
+	flag.StringVar(&token, "uaaClientSecret", "", "secret for the UAA client")
 
 	var listenAddress string
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
@@ -55,11 +61,21 @@ func main() {
 		Logger:    logger,
 	}
 
+	rainmakerClient := rainmaker.NewClient(rainmaker.Config{
+		Host: ccClientHost,
+	})
+	ccClient := cc_client.Client{
+		Org:      rainmakerClient.Organizations,
+		Space:    rainmakerClient.Spaces,
+		App:      rainmakerClient.Applications,
+		UAAToken: token,
+	}
 	ducatiDaemonClient := client.New(ducatiAPI, http.DefaultClient)
 	httpResolver := &resolver.HTTPResolver{
 		Logger:       logger,
 		Suffix:       ducatiSuffix,
 		DaemonClient: ducatiDaemonClient,
+		CCClient:     &ccClient,
 	}
 	resolverMuxer := dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
 		if strings.HasSuffix(request.Question[0].Name, fmt.Sprintf("%s.", ducatiSuffix)) {

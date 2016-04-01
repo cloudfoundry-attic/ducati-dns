@@ -15,8 +15,14 @@ type ducatiDaemonClient interface {
 	GetContainer(containerID string) (models.Container, error)
 }
 
+//go:generate counterfeiter -o ../fakes/cc_client.go --fake-name CCClient . ccClient
+type ccClient interface {
+	GetAppGuid(appName string, space string, org string) (string, error)
+}
+
 type HTTPResolver struct {
 	DaemonClient ducatiDaemonClient
+	CCClient     ccClient
 	TTL          int
 	Suffix       string
 	Logger       lager.Logger
@@ -25,12 +31,37 @@ type HTTPResolver struct {
 func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 	requestedName := request.Question[0].Name
 	fullyQualifiedSuffix := "." + r.Suffix + "."
-	containerName := strings.TrimSuffix(requestedName, fullyQualifiedSuffix)
-	if containerName == requestedName {
+	appSpaceOrg := strings.TrimSuffix(requestedName, fullyQualifiedSuffix)
+	if appSpaceOrg == requestedName {
 		m := &dns.Msg{}
 		m.SetRcode(request, dns.RcodeNameError)
 		w.WriteMsg(m)
 		r.Logger.Info("unknown-name", lager.Data{"requested_name": requestedName})
+		return
+	}
+
+	domainParts := strings.Split(appSpaceOrg, ".")
+	if len(domainParts) != 3 {
+		m := &dns.Msg{}
+		m.SetRcode(request, dns.RcodeNameError)
+		w.WriteMsg(m)
+		r.Logger.Info("invalid-domain", lager.Data{"requested_name": requestedName})
+		return
+	}
+
+	containerName, err := r.CCClient.GetAppGuid(domainParts[0], domainParts[1], domainParts[2])
+	if err != nil {
+		m := &dns.Msg{}
+		m.SetRcode(request, dns.RcodeServerFailure)
+		w.WriteMsg(m)
+		r.Logger.Error("cloud-controller-client-error", err)
+		return
+	}
+	if containerName == "" {
+		m := &dns.Msg{}
+		m.SetRcode(request, dns.RcodeNameError)
+		w.WriteMsg(m)
+		r.Logger.Info("invalid-domain", lager.Data{"requested_name": requestedName})
 		return
 	}
 
