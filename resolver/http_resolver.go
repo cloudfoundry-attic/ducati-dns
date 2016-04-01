@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/ducati-daemon/client"
 	"github.com/cloudfoundry-incubator/ducati-daemon/models"
+	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
 	"github.com/miekg/dns"
 	"github.com/pivotal-golang/lager"
 )
@@ -29,11 +30,12 @@ type HTTPResolver struct {
 }
 
 func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
+	m := &dns.Msg{}
+
 	requestedName := request.Question[0].Name
 	fullyQualifiedSuffix := "." + r.Suffix + "."
 	appSpaceOrg := strings.TrimSuffix(requestedName, fullyQualifiedSuffix)
 	if appSpaceOrg == requestedName {
-		m := &dns.Msg{}
 		m.SetRcode(request, dns.RcodeNameError)
 		w.WriteMsg(m)
 		r.Logger.Info("unknown-name", lager.Data{"requested_name": requestedName})
@@ -42,7 +44,6 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 
 	domainParts := strings.Split(appSpaceOrg, ".")
 	if len(domainParts) != 3 {
-		m := &dns.Msg{}
 		m.SetRcode(request, dns.RcodeNameError)
 		w.WriteMsg(m)
 		r.Logger.Info("invalid-domain", lager.Data{"requested_name": requestedName})
@@ -51,23 +52,20 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 
 	containerName, err := r.CCClient.GetAppGuid(domainParts[0], domainParts[1], domainParts[2])
 	if err != nil {
-		m := &dns.Msg{}
+		if err == cc_client.DomainNotFoundError {
+			m.SetRcode(request, dns.RcodeNameError)
+			w.WriteMsg(m)
+			r.Logger.Info("domain-not-found", lager.Data{"requested_name": requestedName})
+			return
+		}
 		m.SetRcode(request, dns.RcodeServerFailure)
 		w.WriteMsg(m)
 		r.Logger.Error("cloud-controller-client-error", err)
 		return
 	}
-	if containerName == "" {
-		m := &dns.Msg{}
-		m.SetRcode(request, dns.RcodeNameError)
-		w.WriteMsg(m)
-		r.Logger.Info("invalid-domain", lager.Data{"requested_name": requestedName})
-		return
-	}
 
 	container, err := r.DaemonClient.GetContainer(containerName)
 	if err != nil {
-		m := &dns.Msg{}
 		if err == client.RecordNotFoundError {
 			m.SetRcode(request, dns.RcodeNameError)
 			w.WriteMsg(m)
@@ -80,7 +78,6 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 		return
 	}
 
-	m := &dns.Msg{}
 	m.SetReply(request)
 
 	m.Answer = []dns.RR{

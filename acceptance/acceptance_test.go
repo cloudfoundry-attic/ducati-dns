@@ -36,10 +36,10 @@ var _ = Describe("AcceptanceTests", func() {
 				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-org-guid"},"entity":{"name":"my-org"}}]}`))
 				return
 			case "/v2/spaces":
-				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-space-guid"},"entity":{"name":"my-space"}}]}`))
+				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-space-guid"},"entity":{"name":"my-space", "organization_guid":"my-org-guid"}}]}`))
 				return
 			case "/v2/apps":
-				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-container-id"},"entity":{"name":"my-app"}}]}`))
+				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-container-id"},"entity":{"name":"my-app", "space_guid":"my-space-guid"}}]}`))
 				return
 			}
 		}))

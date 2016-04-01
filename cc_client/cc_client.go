@@ -1,6 +1,7 @@
 package cc_client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/pivotal-cf-experimental/rainmaker"
@@ -28,6 +29,8 @@ type Client struct {
 	UAAToken string
 }
 
+var DomainNotFoundError error = errors.New("domain not found")
+
 func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (string, error) {
 	var orgGuid string
 	var spaceGuid string
@@ -44,6 +47,10 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 		}
 	}
 
+	if orgGuid == "" {
+		return "", DomainNotFoundError
+	}
+
 	spaceList, err := c.Space.List(c.UAAToken)
 	if err != nil {
 		return "", fmt.Errorf("cc client: %s", err)
@@ -55,6 +62,10 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 		}
 	}
 
+	if spaceGuid == "" {
+		return "", DomainNotFoundError
+	}
+
 	appList, err := c.App.List(c.UAAToken)
 	if err != nil {
 		return "", fmt.Errorf("cc client: %s", err)
@@ -64,6 +75,10 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 		if app.SpaceGUID == spaceGuid && app.Name == appName {
 			appGuid = app.GUID
 		}
+	}
+
+	if appGuid == "" {
+		return "", DomainNotFoundError
 	}
 
 	return appGuid, nil

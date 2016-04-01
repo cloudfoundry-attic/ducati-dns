@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/ducati-daemon/client"
 	"github.com/cloudfoundry-incubator/ducati-daemon/models"
+	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
 	"github.com/cloudfoundry-incubator/ducati-dns/fakes"
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/miekg/dns"
@@ -97,9 +98,9 @@ var _ = Describe("HTTPResolver", func() {
 		})
 	})
 
-	Context("when the container name is empty", func() {
+	Context("when the cc client errors with DomainNotFoundError", func() {
 		BeforeEach(func() {
-			fakeCCClient.GetAppGuidReturns("", nil)
+			fakeCCClient.GetAppGuidReturns("", cc_client.DomainNotFoundError)
 		})
 
 		It("should reply with NXDOMAIN", func() {
@@ -112,7 +113,7 @@ var _ = Describe("HTTPResolver", func() {
 		It("should log the error", func() {
 			httpResolver.ServeDNS(responseWriter, request)
 
-			Expect(fakeLogger).To(gbytes.Say("invalid-domain.*some-app.some-space.some-org.potato."))
+			Expect(fakeLogger).To(gbytes.Say("domain-not-found.*some-app.some-space.some-org.potato."))
 		})
 	})
 

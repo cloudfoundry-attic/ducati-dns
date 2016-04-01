@@ -113,27 +113,21 @@ var _ = Describe("CCClient", func() {
 	})
 
 	Context("when org guid can not be found", func() {
-		It("returns an empty string for the app guid", func() {
-			appGuid, err := client.GetAppGuid("some-app", "some-space", "some-org-i-dont-want")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(appGuid).To(BeEmpty())
+		It("returns a not found error", func() {
+			_, err := client.GetAppGuid("some-app", "some-space", "some-org-i-dont-want")
+			Expect(err).To(MatchError(cc_client.DomainNotFoundError))
 		})
 	})
 	Context("when space guid can not be found", func() {
 		It("returns an empty string for the app guid", func() {
-			appGuid, err := client.GetAppGuid("some-app", "some-space-i-dont-want", "some-org")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(appGuid).To(BeEmpty())
+			_, err := client.GetAppGuid("some-app", "some-space-i-dont-want", "some-org")
+			Expect(err).To(MatchError(cc_client.DomainNotFoundError))
 		})
 	})
 	Context("when app guid can not be found", func() {
 		It("returns an empty string for the app guid", func() {
-			appGuid, err := client.GetAppGuid("some-app-i-dont-have", "some-space", "some-org")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(appGuid).To(BeEmpty())
+			_, err := client.GetAppGuid("some-app-i-dont-have", "some-space", "some-org")
+			Expect(err).To(MatchError(cc_client.DomainNotFoundError))
 		})
 	})
 })
