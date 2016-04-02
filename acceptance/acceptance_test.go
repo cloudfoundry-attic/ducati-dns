@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -19,6 +20,9 @@ var _ = Describe("AcceptanceTests", func() {
 	var listenPort string
 	var mockDucatiAPIServer *httptest.Server
 	var mockCCAPIServer *httptest.Server
+	var mockUAAServer *httptest.Server
+	var ccAPIReceivedTokenCount int
+	var uaaRequestCount int
 
 	BeforeEach(func() {
 		listenPort = strconv.Itoa(11999 + GinkgoParallelNode())
@@ -31,6 +35,9 @@ var _ = Describe("AcceptanceTests", func() {
 			w.WriteHeader(http.StatusNotFound)
 		}))
 		mockCCAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header["Authorization"][0] == "Bearer my-token" {
+				ccAPIReceivedTokenCount++
+			}
 			switch r.URL.Path {
 			case "/v2/organizations":
 				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-org-guid"},"entity":{"name":"my-org"}}]}`))
@@ -43,8 +50,17 @@ var _ = Describe("AcceptanceTests", func() {
 				return
 			}
 		}))
+		mockUAAServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.Header["Authorization"][0], "Basic ") {
+				uaaRequestCount++
+			}
+			switch r.URL.Path {
+			case "/oauth/token":
+				w.Write([]byte(`{"access_token":"my-token"}`))
+				return
+			}
+		}))
 	})
-
 	Context("when only one server is specified", func() {
 		BeforeEach(func() {
 			var err error
@@ -56,6 +72,7 @@ var _ = Describe("AcceptanceTests", func() {
 				"--ducatiSuffix", "potato",
 				"--ducatiAPI", mockDucatiAPIServer.URL,
 				"--ccAPI", mockCCAPIServer.URL,
+				"--uaaAPI", mockUAAServer.URL,
 				"--uaaClientSecret", "a-secret",
 			)
 			serverSession, err = gexec.Start(serverCmd, GinkgoWriter, GinkgoWriter)
@@ -111,6 +128,8 @@ var _ = Describe("AcceptanceTests", func() {
 					Eventually(clientSession).Should(gexec.Exit(0))
 
 					// verify client works
+					Expect(uaaRequestCount).To(Equal(1))
+					Expect(ccAPIReceivedTokenCount).To(Equal(3))
 					Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nmy-app.my-space.my-org.potato"))
 					Expect(clientSession.Out).To(gbytes.Say("10.11.12.13"))
 				})

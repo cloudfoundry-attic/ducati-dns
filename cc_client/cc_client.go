@@ -22,11 +22,16 @@ type appService interface {
 	List(token string) (rainmaker.ApplicationsList, error)
 }
 
+//go:generate counterfeiter -o ../fakes/uaa_client_service.go --fake-name UAAClientService . uaaClientService
+type uaaClientService interface {
+	GetToken() (string, error)
+}
+
 type Client struct {
-	Org      orgService
-	Space    spaceService
-	App      appService
-	UAAToken string
+	Org   orgService
+	Space spaceService
+	App   appService
+	UAA   uaaClientService
 }
 
 var DomainNotFoundError error = errors.New("domain not found")
@@ -36,7 +41,12 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 	var spaceGuid string
 	var appGuid string
 
-	orgList, err := c.Org.List(c.UAAToken)
+	token, err := c.UAA.GetToken()
+	if err != nil {
+		return "", fmt.Errorf("uaa client: %s", err)
+	}
+
+	orgList, err := c.Org.List(token)
 	if err != nil {
 		return "", fmt.Errorf("cc client: %s", err)
 	}
@@ -51,7 +61,7 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 		return "", DomainNotFoundError
 	}
 
-	spaceList, err := c.Space.List(c.UAAToken)
+	spaceList, err := c.Space.List(token)
 	if err != nil {
 		return "", fmt.Errorf("cc client: %s", err)
 	}
@@ -66,7 +76,7 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 		return "", DomainNotFoundError
 	}
 
-	appList, err := c.App.List(c.UAAToken)
+	appList, err := c.App.List(token)
 	if err != nil {
 		return "", fmt.Errorf("cc client: %s", err)
 	}
