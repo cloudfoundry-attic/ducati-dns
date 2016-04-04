@@ -52,10 +52,10 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 
 	containerName, err := r.CCClient.GetAppGuid(domainParts[0], domainParts[1], domainParts[2])
 	if err != nil {
-		if err == cc_client.DomainNotFoundError {
+		if _, ok := err.(*cc_client.NotFoundError); ok {
 			m.SetRcode(request, dns.RcodeNameError)
 			w.WriteMsg(m)
-			r.Logger.Info("domain-not-found", lager.Data{"requested_name": requestedName})
+			r.Logger.Error("not-found", err, lager.Data{"requested_name": requestedName})
 			return
 		}
 		m.SetRcode(request, dns.RcodeServerFailure)

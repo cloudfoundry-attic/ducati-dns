@@ -98,9 +98,9 @@ var _ = Describe("HTTPResolver", func() {
 		})
 	})
 
-	Context("when the cc client errors with DomainNotFoundError", func() {
+	Context("when the cc client errors with a NotFoundError", func() {
 		BeforeEach(func() {
-			fakeCCClient.GetAppGuidReturns("", cc_client.DomainNotFoundError)
+			fakeCCClient.GetAppGuidReturns("", &cc_client.NotFoundError{"something was not found"})
 		})
 
 		It("should reply with NXDOMAIN", func() {
@@ -113,7 +113,7 @@ var _ = Describe("HTTPResolver", func() {
 		It("should log the error", func() {
 			httpResolver.ServeDNS(responseWriter, request)
 
-			Expect(fakeLogger).To(gbytes.Say("domain-not-found.*some-app.some-space.some-org.potato."))
+			Expect(fakeLogger).To(gbytes.Say("not-found.*something was not found.*some-app.some-space.some-org.potato."))
 		})
 	})
 
