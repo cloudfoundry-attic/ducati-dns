@@ -45,9 +45,11 @@ func (n *NotFoundError) Error() string {
 	}
 }
 
-var OrgNotFoundError = &NotFoundError{"org not found"}
-var SpaceNotFoundError = &NotFoundError{"space not found"}
-var AppNotFoundError = &NotFoundError{"app not found"}
+func newNotFoundError(unit, name string) *NotFoundError {
+	return &NotFoundError{
+		fmt.Sprintf("%s not found: %s", unit, name),
+	}
+}
 
 func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (string, error) {
 	var orgGuid string
@@ -71,7 +73,7 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 	}
 
 	if orgGuid == "" {
-		return "", OrgNotFoundError
+		return "", newNotFoundError("org", orgName)
 	}
 
 	spaceList, err := c.Space.List(token)
@@ -86,7 +88,7 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 	}
 
 	if spaceGuid == "" {
-		return "", SpaceNotFoundError
+		return "", newNotFoundError("space", spaceName)
 	}
 
 	appList, err := c.App.List(token)
@@ -101,7 +103,7 @@ func (c *Client) GetAppGuid(appName string, spaceName string, orgName string) (s
 	}
 
 	if appGuid == "" {
-		return "", AppNotFoundError
+		return "", newNotFoundError("app", appName)
 	}
 
 	return appGuid, nil
