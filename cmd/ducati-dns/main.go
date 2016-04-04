@@ -29,6 +29,7 @@ func main() {
 		ducatiAPI     string
 		ccClientHost  string
 		uaaClientHost string
+		uaaClientName string
 		uaaSecret     string
 	)
 
@@ -37,6 +38,7 @@ func main() {
 	flag.StringVar(&ducatiAPI, "ducatiAPI", "", "URL for the ducati API")
 	flag.StringVar(&ccClientHost, "ccAPI", "", "URL for the cloud controller API")
 	flag.StringVar(&uaaClientHost, "uaaAPI", "", "URL for the UAA API")
+	flag.StringVar(&uaaClientName, "uaaClientName", "", "client name for the UAA client")
 	flag.StringVar(&uaaSecret, "uaaClientSecret", "", "secret for the UAA client")
 
 	var listenAddress string
@@ -55,6 +57,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "missing required arg: ducatiAPI")
 		os.Exit(1)
 	}
+	if uaaClientName == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: uaaClientName")
+		os.Exit(1)
+	}
+	if uaaSecret == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: uaaClientSecret")
+		os.Exit(1)
+	}
 
 	logger := lager.NewLogger("ducati-dns")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
@@ -70,7 +80,7 @@ func main() {
 	})
 	uaaClient := &uaa_client.Client{
 		Service: warrantClient.Clients,
-		User:    "admin",
+		User:    uaaClientName,
 		Secret:  uaaSecret,
 	}
 	rainmakerClient := rainmaker.NewClient(rainmaker.Config{
