@@ -39,12 +39,12 @@ var _ = Describe("UAAClient", func() {
 
 		Context("when it fails to get the token from the service", func() {
 			BeforeEach(func() {
-				fakeWarrantClient.GetTokenReturns("", errors.New("get token failed"))
+				fakeWarrantClient.GetTokenReturns("", errors.New("something"))
 			})
 			It("returns an error", func() {
 				_, err := client.GetToken()
 
-				Expect(err).To(MatchError(ContainSubstring("get token failed")))
+				Expect(err).To(MatchError(ContainSubstring("get token: something")))
 			})
 		})
 	})

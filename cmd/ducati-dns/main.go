@@ -24,22 +24,24 @@ import (
 
 func main() {
 	var (
-		server        string
-		ducatiSuffix  string
-		ducatiAPI     string
-		ccClientHost  string
-		uaaClientHost string
-		uaaClientName string
-		uaaSecret     string
+		server            string
+		ducatiSuffix      string
+		ducatiAPI         string
+		ccClientHost      string
+		uaaBaseURL        string
+		uaaClientName     string
+		uaaSecret         string
+		skipSSLValidation bool
 	)
 
 	flag.StringVar(&server, "server", "", "Single DNS server to forward queries to")
 	flag.StringVar(&ducatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
 	flag.StringVar(&ducatiAPI, "ducatiAPI", "", "URL for the ducati API")
 	flag.StringVar(&ccClientHost, "ccAPI", "", "URL for the cloud controller API")
-	flag.StringVar(&uaaClientHost, "uaaAPI", "", "URL for the UAA API")
+	flag.StringVar(&uaaBaseURL, "uaaBaseURL", "", "URL for the UAA API, e.g. https://uaa.example.com/")
 	flag.StringVar(&uaaClientName, "uaaClientName", "", "client name for the UAA client")
 	flag.StringVar(&uaaSecret, "uaaClientSecret", "", "secret for the UAA client")
+	flag.BoolVar(&skipSSLValidation, "skipSSLValidation", false, "skip SSL validation for UAA")
 
 	var listenAddress string
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
@@ -65,6 +67,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "missing required arg: uaaClientSecret")
 		os.Exit(1)
 	}
+	if uaaBaseURL == "" {
+		fmt.Fprintf(os.Stderr, "missing required arg: uaaBaseURL")
+		os.Exit(1)
+	}
 
 	logger := lager.NewLogger("ducati-dns")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
@@ -76,7 +82,8 @@ func main() {
 	}
 
 	warrantClient := warrant.New(warrant.Config{
-		Host: uaaClientHost,
+		Host:          uaaBaseURL,
+		SkipVerifySSL: skipSSLValidation,
 	})
 	uaaClient := &uaa_client.Client{
 		Service: warrantClient.Clients,

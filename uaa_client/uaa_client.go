@@ -16,7 +16,7 @@ type Client struct {
 func (c *Client) GetToken() (string, error) {
 	token, err := c.Service.GetToken(c.User, c.Secret)
 	if err != nil {
-		return "", fmt.Errorf("get token:", err)
+		return "", fmt.Errorf("get token: %s", err)
 	}
 
 	return token, nil

@@ -70,7 +70,7 @@ var _ = Describe("AcceptanceTests", func() {
 			"--ducatiSuffix=potato",
 			"--ducatiAPI=" + mockDucatiAPIServer.URL,
 			"--ccAPI=" + mockCCAPIServer.URL,
-			"--uaaAPI=" + mockUAAServer.URL,
+			"--uaaBaseURL=" + mockUAAServer.URL,
 			"--uaaClientName=some-client",
 			"--uaaClientSecret=a-secret",
 		}
@@ -180,6 +180,7 @@ var _ = Describe("AcceptanceTests", func() {
 			Entry("ducatiAPI", "ducatiAPI"),
 			Entry("uaaClientName", "uaaClientName"),
 			Entry("uaaClientSecret", "uaaClientSecret"),
+			Entry("uaaBaseURL", "uaaBaseURL"),
 		)
 
 	})
