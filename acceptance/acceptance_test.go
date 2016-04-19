@@ -157,7 +157,6 @@ var _ = Describe("AcceptanceTests", func() {
 	}
 
 	Describe("missing flags", func() {
-
 		DescribeTable("when flags are ommitted", func(missing string) {
 			var err error
 
@@ -178,6 +177,7 @@ var _ = Describe("AcceptanceTests", func() {
 			Entry("server", "server"),
 			Entry("ducatiSuffix", "ducatiSuffix"),
 			Entry("ducatiAPI", "ducatiAPI"),
+			Entry("ccAPI", "ccAPI"),
 			Entry("uaaClientName", "uaaClientName"),
 			Entry("uaaClientSecret", "uaaClientSecret"),
 			Entry("uaaBaseURL", "uaaBaseURL"),
