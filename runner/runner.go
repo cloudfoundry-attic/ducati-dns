@@ -7,7 +7,7 @@ import (
 
 //go:generate counterfeiter -o ../fakes/dns_server.go --fake-name DNSServer . dnsServer
 type dnsServer interface {
-	ListenAndServe() error
+	ActivateAndServe() error
 	Shutdown() error
 }
 
@@ -18,7 +18,7 @@ type Runner struct {
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- r.DNSServer.ListenAndServe()
+		errCh <- r.DNSServer.ActivateAndServe()
 	}()
 
 	close(ready)
@@ -27,7 +27,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		select {
 		case err := <-errCh:
 			if err != nil {
-				return fmt.Errorf("listen and serve: %s", err)
+				return fmt.Errorf("activate and serve: %s", err)
 			}
 			return nil
 

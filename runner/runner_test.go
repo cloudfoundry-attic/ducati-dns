@@ -30,16 +30,16 @@ var _ = Describe("Runner", func() {
 		ginkgomon.Kill(process)
 	})
 
-	It("calls ListenAndServe", func() {
+	It("calls ActivateAndServe", func() {
 		process = ifrit.Background(r)
 		Eventually(process.Ready()).Should(BeClosed())
 
-		Expect(dnsServer.ListenAndServeCallCount()).To(Equal(1))
+		Expect(dnsServer.ActivateAndServeCallCount()).To(Equal(1))
 	})
 
 	It("shuts down when signaled", func() {
 		done := make(chan struct{}, 1)
-		dnsServer.ListenAndServeStub = func() error {
+		dnsServer.ActivateAndServeStub = func() error {
 			<-done
 			return nil
 		}
@@ -57,14 +57,14 @@ var _ = Describe("Runner", func() {
 		Expect(dnsServer.ShutdownCallCount()).To(Equal(1))
 	})
 
-	Context("when ListenAndServeFails", func() {
+	Context("when ActivateAndServe fails", func() {
 		BeforeEach(func() {
-			dnsServer.ListenAndServeReturns(errors.New("welp"))
+			dnsServer.ActivateAndServeReturns(errors.New("welp"))
 		})
 
 		It("propagates a meaningful error", func() {
 			process = ifrit.Background(r)
-			Eventually(process.Wait()).Should(Receive(MatchError("listen and serve: welp")))
+			Eventually(process.Wait()).Should(Receive(MatchError("activate and serve: welp")))
 		})
 	})
 })

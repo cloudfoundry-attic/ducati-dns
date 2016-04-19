@@ -4,10 +4,10 @@ package fakes
 import "sync"
 
 type DNSServer struct {
-	ListenAndServeStub        func() error
-	listenAndServeMutex       sync.RWMutex
-	listenAndServeArgsForCall []struct{}
-	listenAndServeReturns     struct {
+	ActivateAndServeStub        func() error
+	activateAndServeMutex       sync.RWMutex
+	activateAndServeArgsForCall []struct{}
+	activateAndServeReturns     struct {
 		result1 error
 	}
 	ShutdownStub        func() error
@@ -18,26 +18,26 @@ type DNSServer struct {
 	}
 }
 
-func (fake *DNSServer) ListenAndServe() error {
-	fake.listenAndServeMutex.Lock()
-	fake.listenAndServeArgsForCall = append(fake.listenAndServeArgsForCall, struct{}{})
-	fake.listenAndServeMutex.Unlock()
-	if fake.ListenAndServeStub != nil {
-		return fake.ListenAndServeStub()
+func (fake *DNSServer) ActivateAndServe() error {
+	fake.activateAndServeMutex.Lock()
+	fake.activateAndServeArgsForCall = append(fake.activateAndServeArgsForCall, struct{}{})
+	fake.activateAndServeMutex.Unlock()
+	if fake.ActivateAndServeStub != nil {
+		return fake.ActivateAndServeStub()
 	} else {
-		return fake.listenAndServeReturns.result1
+		return fake.activateAndServeReturns.result1
 	}
 }
 
-func (fake *DNSServer) ListenAndServeCallCount() int {
-	fake.listenAndServeMutex.RLock()
-	defer fake.listenAndServeMutex.RUnlock()
-	return len(fake.listenAndServeArgsForCall)
+func (fake *DNSServer) ActivateAndServeCallCount() int {
+	fake.activateAndServeMutex.RLock()
+	defer fake.activateAndServeMutex.RUnlock()
+	return len(fake.activateAndServeArgsForCall)
 }
 
-func (fake *DNSServer) ListenAndServeReturns(result1 error) {
-	fake.ListenAndServeStub = nil
-	fake.listenAndServeReturns = struct {
+func (fake *DNSServer) ActivateAndServeReturns(result1 error) {
+	fake.ActivateAndServeStub = nil
+	fake.activateAndServeReturns = struct {
 		result1 error
 	}{result1}
 }

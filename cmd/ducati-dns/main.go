@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -114,11 +115,20 @@ func main() {
 		}
 	})
 
+	udpAddr, err := net.ResolveUDPAddr("udp", listenAddress)
+	if err != nil {
+		log.Fatalf("invalid listen address %s: %s", listenAddress, err)
+	}
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		log.Fatalf("listen: %s", err)
+	}
+	defer udpConn.Close()
+
 	dnsRunner := &runner.Runner{
 		DNSServer: &dns.Server{
-			Addr:    listenAddress,
-			Net:     "udp",
-			Handler: resolverMuxer,
+			PacketConn: udpConn,
+			Handler:    resolverMuxer,
 		},
 	}
 
@@ -130,7 +140,7 @@ func main() {
 
 	monitor := ifrit.Invoke(sigmon.New(group))
 
-	err := <-monitor.Wait()
+	err = <-monitor.Wait()
 	if err != nil {
 		log.Fatalf("daemon terminated: %s", err)
 	}
