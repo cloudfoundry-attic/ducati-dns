@@ -2,12 +2,16 @@ package resolver
 
 import (
 	"net"
+	"net/http"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/ducati-daemon/client"
 	"github.com/cloudfoundry-incubator/ducati-daemon/models"
 	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
+	"github.com/cloudfoundry-incubator/ducati-dns/uaa_client"
 	"github.com/miekg/dns"
+	"github.com/pivotal-cf-experimental/rainmaker"
+	"github.com/pivotal-cf-experimental/warrant"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -19,6 +23,47 @@ type ducatiDaemonClient interface {
 //go:generate counterfeiter -o ../fakes/cc_client.go --fake-name CCClient . ccClient
 type ccClient interface {
 	GetAppGuid(appName string, space string, org string) (string, error)
+}
+
+type Config struct {
+	DucatiSuffix      string
+	DucatiAPI         string
+	CCClientHost      string
+	UAABaseURL        string
+	UAAClientName     string
+	UAASecret         string
+	SkipSSLValidation bool
+}
+
+func NewHTTPResolver(logger lager.Logger, config Config) *HTTPResolver {
+	warrantClient := warrant.New(warrant.Config{
+		Host:          config.UAABaseURL,
+		SkipVerifySSL: config.SkipSSLValidation,
+	})
+	uaaClient := &uaa_client.Client{
+		Service: warrantClient.Clients,
+		User:    config.UAAClientName,
+		Secret:  config.UAASecret,
+	}
+	rainmakerClient := rainmaker.NewClient(rainmaker.Config{
+		Host: config.CCClientHost,
+	})
+	ccClient := cc_client.Client{
+		Org:   rainmakerClient.Organizations,
+		Space: rainmakerClient.Spaces,
+		App:   rainmakerClient.Applications,
+		UAA:   uaaClient,
+	}
+	ducatiDaemonClient := client.New(
+		config.DucatiAPI,
+		http.DefaultClient,
+	)
+	return &HTTPResolver{
+		Logger:       logger,
+		Suffix:       config.DucatiSuffix,
+		DaemonClient: ducatiDaemonClient,
+		CCClient:     &ccClient,
+	}
 }
 
 type HTTPResolver struct {

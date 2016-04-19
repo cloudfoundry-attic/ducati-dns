@@ -3,17 +3,11 @@ package runner
 import (
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/ducati-daemon/client"
-	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
-	"github.com/cloudfoundry-incubator/ducati-dns/uaa_client"
 	"github.com/miekg/dns"
-	"github.com/pivotal-cf-experimental/rainmaker"
-	"github.com/pivotal-cf-experimental/warrant"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -24,15 +18,9 @@ type dnsServer interface {
 }
 
 type Config struct {
-	Server            string
-	DucatiSuffix      string
-	DucatiAPI         string
-	CCClientHost      string
-	UAABaseURL        string
-	UAAClientName     string
-	UAASecret         string
-	SkipSSLValidation bool
-	Listener          net.PacketConn
+	resolver.Config
+	Server   string
+	Listener net.PacketConn
 }
 
 type Runner struct {
@@ -46,34 +34,8 @@ func New(logger lager.Logger, config Config) (*Runner, error) {
 		Logger:    logger,
 	}
 
-	warrantClient := warrant.New(warrant.Config{
-		Host:          config.UAABaseURL,
-		SkipVerifySSL: config.SkipSSLValidation,
-	})
-	uaaClient := &uaa_client.Client{
-		Service: warrantClient.Clients,
-		User:    config.UAAClientName,
-		Secret:  config.UAASecret,
-	}
-	rainmakerClient := rainmaker.NewClient(rainmaker.Config{
-		Host: config.CCClientHost,
-	})
-	ccClient := cc_client.Client{
-		Org:   rainmakerClient.Organizations,
-		Space: rainmakerClient.Spaces,
-		App:   rainmakerClient.Applications,
-		UAA:   uaaClient,
-	}
-	ducatiDaemonClient := client.New(
-		config.DucatiAPI,
-		http.DefaultClient,
-	)
-	httpResolver := &resolver.HTTPResolver{
-		Logger:       logger,
-		Suffix:       config.DucatiSuffix,
-		DaemonClient: ducatiDaemonClient,
-		CCClient:     &ccClient,
-	}
+	httpResolver := resolver.NewHTTPResolver(logger, config.Config)
+
 	resolverMuxer := dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
 		if strings.HasSuffix(request.Question[0].Name, fmt.Sprintf("%s.", config.DucatiSuffix)) {
 			httpResolver.ServeDNS(w, request)
