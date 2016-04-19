@@ -49,28 +49,22 @@ func main() {
 	flag.Parse()
 
 	if server == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: server")
-		os.Exit(1)
+		log.Fatalf("missing required arg: server")
 	}
 	if ducatiSuffix == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: ducatiSuffix")
-		os.Exit(1)
+		log.Fatalf("missing required arg: ducatiSuffix")
 	}
 	if ducatiAPI == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: ducatiAPI")
-		os.Exit(1)
+		log.Fatalf("missing required arg: ducatiAPI")
 	}
 	if uaaClientName == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: uaaClientName")
-		os.Exit(1)
+		log.Fatalf("missing required arg: uaaClientName")
 	}
 	if uaaSecret == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: uaaClientSecret")
-		os.Exit(1)
+		log.Fatalf("missing required arg: uaaClientSecret")
 	}
 	if uaaBaseURL == "" {
-		fmt.Fprintf(os.Stderr, "missing required arg: uaaBaseURL")
-		os.Exit(1)
+		log.Fatalf("missing required arg: uaaBaseURL")
 	}
 
 	logger := lager.NewLogger("ducati-dns")
