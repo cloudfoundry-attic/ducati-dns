@@ -3,40 +3,18 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
-	"strings"
 
-	"github.com/cloudfoundry-incubator/ducati-daemon/client"
-	"github.com/cloudfoundry-incubator/ducati-dns/cc_client"
-	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
-	"github.com/cloudfoundry-incubator/ducati-dns/uaa_client"
-	"github.com/miekg/dns"
-	"github.com/pivotal-cf-experimental/rainmaker"
-	"github.com/pivotal-cf-experimental/warrant"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/sigmon"
 )
 
-type DNSConfig struct {
-	Server            string
-	DucatiSuffix      string
-	DucatiAPI         string
-	CCClientHost      string
-	UAABaseURL        string
-	UAAClientName     string
-	UAASecret         string
-	ListenAddress     string
-	SkipSSLValidation bool
-}
-
-func (c DNSConfig) Validate() error {
+func validate(c runner.Config) error {
 	if c.Server == "" {
 		return errors.New("missing required arg: server")
 	}
@@ -63,7 +41,10 @@ func (c DNSConfig) Validate() error {
 }
 
 func main() {
-	var config DNSConfig
+	var (
+		config        runner.Config
+		listenAddress string
+	)
 
 	flag.StringVar(&config.Server, "server", "", "Single DNS server to forward queries to")
 	flag.StringVar(&config.DucatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
@@ -73,71 +54,30 @@ func main() {
 	flag.StringVar(&config.UAAClientName, "uaaClientName", "", "client name for the UAA client")
 	flag.StringVar(&config.UAASecret, "uaaClientSecret", "", "secret for the UAA client")
 	flag.BoolVar(&config.SkipSSLValidation, "skipSSLValidation", false, "skip SSL validation for UAA")
-
-	flag.StringVar(&config.ListenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
+	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
 	flag.Parse()
 
-	if err := config.Validate(); err != nil {
+	if err := validate(config); err != nil {
 		log.Fatalf("validate: %s", err)
 	}
 
 	logger := lager.NewLogger("ducati-dns")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
 
-	forwardingResolver := &resolver.ForwardingResolver{
-		Exchanger: &dns.Client{Net: "udp"},
-		Server:    config.Server,
-		Logger:    logger,
-	}
-
-	warrantClient := warrant.New(warrant.Config{
-		Host:          config.UAABaseURL,
-		SkipVerifySSL: config.SkipSSLValidation,
-	})
-	uaaClient := &uaa_client.Client{
-		Service: warrantClient.Clients,
-		User:    config.UAAClientName,
-		Secret:  config.UAASecret,
-	}
-	rainmakerClient := rainmaker.NewClient(rainmaker.Config{
-		Host: config.CCClientHost,
-	})
-	ccClient := cc_client.Client{
-		Org:   rainmakerClient.Organizations,
-		Space: rainmakerClient.Spaces,
-		App:   rainmakerClient.Applications,
-		UAA:   uaaClient,
-	}
-	ducatiDaemonClient := client.New(config.DucatiAPI, http.DefaultClient)
-	httpResolver := &resolver.HTTPResolver{
-		Logger:       logger,
-		Suffix:       config.DucatiSuffix,
-		DaemonClient: ducatiDaemonClient,
-		CCClient:     &ccClient,
-	}
-	resolverMuxer := dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
-		if strings.HasSuffix(request.Question[0].Name, fmt.Sprintf("%s.", config.DucatiSuffix)) {
-			httpResolver.ServeDNS(w, request)
-		} else {
-			forwardingResolver.ServeDNS(w, request)
-		}
-	})
-
-	udpAddr, err := net.ResolveUDPAddr("udp", config.ListenAddress)
+	udpAddr, err := net.ResolveUDPAddr("udp", listenAddress)
 	if err != nil {
-		log.Fatalf("invalid listen address %s: %s", config.ListenAddress, err)
+		log.Fatalf("invalid listen address %s: %s", listenAddress, err)
 	}
 	udpConn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
 		log.Fatalf("listen: %s", err)
 	}
 	defer udpConn.Close()
+	config.Listener = udpConn
 
-	dnsRunner := &runner.Runner{
-		DNSServer: &dns.Server{
-			PacketConn: udpConn,
-			Handler:    resolverMuxer,
-		},
+	dnsRunner, err := runner.New(logger, config)
+	if err != nil {
+		panic(err)
 	}
 
 	members := grouper.Members{
