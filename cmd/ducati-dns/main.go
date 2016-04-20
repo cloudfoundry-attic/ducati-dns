@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
 	"github.com/cloudfoundry-incubator/ducati-dns/runner"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
@@ -14,10 +15,7 @@ import (
 	"github.com/tedsuo/ifrit/sigmon"
 )
 
-func validate(c runner.Config) error {
-	if c.Server == "" {
-		return errors.New("missing required arg: server")
-	}
+func validate(c resolver.Config) error {
 	if c.DucatiSuffix == "" {
 		return errors.New("missing required arg: ducatiSuffix")
 	}
@@ -42,11 +40,12 @@ func validate(c runner.Config) error {
 
 func main() {
 	var (
-		config        runner.Config
-		listenAddress string
+		config            resolver.Config
+		externalDNSServer string
+		listenAddress     string
 	)
 
-	flag.StringVar(&config.Server, "server", "", "Single DNS server to forward queries to")
+	flag.StringVar(&externalDNSServer, "server", "", "Single DNS server to forward queries to")
 	flag.StringVar(&config.DucatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
 	flag.StringVar(&config.DucatiAPI, "ducatiAPI", "", "URL for the ducati API")
 	flag.StringVar(&config.CCClientHost, "ccAPI", "", "URL for the cloud controller API")
@@ -61,6 +60,10 @@ func main() {
 		log.Fatalf("validate: %s", err)
 	}
 
+	if externalDNSServer == "" {
+		log.Fatalf("missing required arg: server")
+	}
+
 	logger := lager.NewLogger("ducati-dns")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
 
@@ -73,12 +76,8 @@ func main() {
 		log.Fatalf("listen: %s", err)
 	}
 	defer udpConn.Close()
-	config.Listener = udpConn
 
-	dnsRunner, err := runner.New(logger, config)
-	if err != nil {
-		panic(err)
-	}
+	dnsRunner := runner.New(logger, config, externalDNSServer, udpConn)
 
 	members := grouper.Members{
 		{"dns_runner", dnsRunner},
