@@ -13,7 +13,7 @@ import (
 
 //go:generate counterfeiter -o ../fakes/ducati_daemon_client.go --fake-name DucatiDaemonClient . ducatiDaemonClient
 type ducatiDaemonClient interface {
-	GetContainer(containerID string) (models.Container, error)
+	ListContainers() ([]models.Container, error)
 }
 
 type Config struct {
@@ -53,17 +53,25 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 		return
 	}
 
-	container, err := r.DaemonClient.GetContainer(appGuid)
+	containers, err := r.DaemonClient.ListContainers()
 	if err != nil {
-		if err == client.RecordNotFoundError {
-			m.SetRcode(request, dns.RcodeNameError)
-			w.WriteMsg(m)
-			r.Logger.Info("record-not-found", lager.Data{"requested_name": requestedName})
-			return
-		}
 		m.SetRcode(request, dns.RcodeServerFailure)
 		w.WriteMsg(m)
 		r.Logger.Error("ducati-client-error", err)
+		return
+	}
+
+	var container models.Container
+	for _, c := range containers {
+		if c.App == appGuid {
+			container = c
+		}
+	}
+
+	if container == (models.Container{}) {
+		m.SetRcode(request, dns.RcodeNameError)
+		w.WriteMsg(m)
+		r.Logger.Info("record-not-found", lager.Data{"requested_name": requestedName})
 		return
 	}
 

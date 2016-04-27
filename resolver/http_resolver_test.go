@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"net"
 
-	"github.com/cloudfoundry-incubator/ducati-daemon/client"
 	"github.com/cloudfoundry-incubator/ducati-daemon/models"
 	"github.com/cloudfoundry-incubator/ducati-dns/fakes"
 	"github.com/cloudfoundry-incubator/ducati-dns/resolver"
@@ -36,8 +35,8 @@ var _ = Describe("HTTPResolver", func() {
 		request.SetQuestion(dns.Fqdn("some-app-guid.potato"), dns.TypeA)
 		fakeLogger = lagertest.NewTestLogger("test")
 		fakeDaemonClient = &fakes.DucatiDaemonClient{}
-		fakeDaemonClient.GetContainerReturns(models.Container{
-			IP: "10.11.12.13",
+		fakeDaemonClient.ListContainersReturns([]models.Container{
+			{IP: "10.11.12.13", App: "some-app-guid"},
 		}, nil)
 		httpResolver = &resolver.HTTPResolver{
 			Suffix:       "potato",
@@ -51,8 +50,7 @@ var _ = Describe("HTTPResolver", func() {
 	It("resolves DNS queries by using the ducati daemon client", func() {
 		httpResolver.ServeDNS(responseWriter, request)
 
-		Expect(fakeDaemonClient.GetContainerCallCount()).To(Equal(1))
-		Expect(fakeDaemonClient.GetContainerArgsForCall(0)).To(Equal("some-app-guid"))
+		Expect(fakeDaemonClient.ListContainersCallCount()).To(Equal(1))
 
 		Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
 
@@ -89,30 +87,30 @@ var _ = Describe("HTTPResolver", func() {
 		})
 	})
 
-	Context("when getting the container from the ducati daemon errors", func() {
-		Context("when the error is a client.RecordNotFound error", func() {
-			BeforeEach(func() {
-				fakeDaemonClient.GetContainerReturns(models.Container{}, client.RecordNotFoundError)
-			})
-
-			It("should reply with NXDOMAIN", func() {
-				httpResolver.ServeDNS(responseWriter, request)
-
-				Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
-				Expect(responseWriter.WriteMsgArgsForCall(0).Id).To(Equal(request.Id))
-				Expect(responseWriter.WriteMsgArgsForCall(0).Rcode).To(Equal(dns.RcodeNameError))
-			})
-
-			It("should log the error", func() {
-				httpResolver.ServeDNS(responseWriter, request)
-
-				Expect(fakeLogger).To(gbytes.Say("record-not-found.*some-app-guid.potato."))
-			})
+	Context("when there are no containers at all", func() {
+		BeforeEach(func() {
+			fakeDaemonClient.ListContainersReturns([]models.Container{}, nil)
 		})
 
+		It("should reply with NXDOMAIN", func() {
+			httpResolver.ServeDNS(responseWriter, request)
+
+			Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))
+			Expect(responseWriter.WriteMsgArgsForCall(0).Id).To(Equal(request.Id))
+			Expect(responseWriter.WriteMsgArgsForCall(0).Rcode).To(Equal(dns.RcodeNameError))
+		})
+
+		It("should log the error", func() {
+			httpResolver.ServeDNS(responseWriter, request)
+
+			Expect(fakeLogger).To(gbytes.Say("record-not-found.*some-app-guid.potato."))
+		})
+	})
+
+	Context("when getting the container from the ducati daemon errors", func() {
 		Context("when the error is something else", func() {
 			BeforeEach(func() {
-				fakeDaemonClient.GetContainerReturns(models.Container{}, errors.New("some server failure"))
+				fakeDaemonClient.ListContainersReturns([]models.Container{}, errors.New("some server failure"))
 			})
 
 			It("should reply with SERVFAIL", func() {
