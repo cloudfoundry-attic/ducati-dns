@@ -19,62 +19,26 @@ var _ = Describe("AcceptanceTests", func() {
 	var serverSession *gexec.Session
 	var listenPort string
 	var mockDucatiAPIServer *httptest.Server
-	var mockCCAPIServer *httptest.Server
-	var mockUAAServer *httptest.Server
-	var ccAPIReceivedTokenCount int
-	var uaaRequestCount int
-	var recordedBasicAuthUser, recordedBasicAuthPassword string
 	var happyPathArgs []string
 
 	BeforeEach(func() {
 		listenPort = strconv.Itoa(11999 + GinkgoParallelNode())
 		mockDucatiAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/containers/my-container-id" {
+			if r.URL.Path == "/containers/my-app-guid" {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{"container_id": "my-container-id", "IP": "10.11.12.13"}`))
+				w.Write([]byte(`{"container_id": "my-app-guid", "IP": "10.11.12.13"}`))
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
-		}))
-		mockCCAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header["Authorization"][0] == "Bearer my-token" {
-				ccAPIReceivedTokenCount++
-			}
-			switch r.URL.Path {
-			case "/v2/organizations":
-				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-org-guid"},"entity":{"name":"my-org"}}]}`))
-				return
-			case "/v2/spaces":
-				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-space-guid"},"entity":{"name":"my-space", "organization_guid":"my-org-guid"}}]}`))
-				return
-			case "/v2/apps":
-				w.Write([]byte(`{"resources":[{"metadata":{"guid":"my-container-id"},"entity":{"name":"my-app", "space_guid":"my-space-guid"}}]}`))
-				return
-			}
-		}))
-		mockUAAServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.Header["Authorization"][0], "Basic ") {
-				uaaRequestCount++
-				recordedBasicAuthUser, recordedBasicAuthPassword, _ = r.BasicAuth()
-			}
-
-			switch r.URL.Path {
-			case "/oauth/token":
-				w.Write([]byte(`{"access_token":"my-token"}`))
-				return
-			}
 		}))
 		happyPathArgs = []string{
 			"--listenAddress=127.0.0.1:" + listenPort,
 			"--server=8.8.8.8:53",
 			"--ducatiSuffix=potato",
 			"--ducatiAPI=" + mockDucatiAPIServer.URL,
-			"--ccAPI=" + mockCCAPIServer.URL,
-			"--uaaBaseURL=" + mockUAAServer.URL,
-			"--uaaClientName=some-client",
-			"--uaaClientSecret=a-secret",
 		}
 	})
+
 	Context("when only one server is specified", func() {
 		BeforeEach(func() {
 			var err error
@@ -126,20 +90,15 @@ var _ = Describe("AcceptanceTests", func() {
 					Consistently(serverSession).ShouldNot(gexec.Exit())
 
 					// run the client
-					clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "my-app.my-space.my-org.potato")
+					clientCmd := exec.Command("dig", "@127.0.0.1", "-p", listenPort, "my-app-guid.potato")
 					clientSession, err := gexec.Start(clientCmd, GinkgoWriter, GinkgoWriter)
 					Expect(err).NotTo(HaveOccurred())
 
 					Eventually(clientSession).Should(gexec.Exit(0))
 
 					// verify client works
-					Expect(uaaRequestCount).To(Equal(1))
-					Expect(ccAPIReceivedTokenCount).To(Equal(3))
-					Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nmy-app.my-space.my-org.potato"))
+					Expect(clientSession.Out).To(gbytes.Say("ANSWER SECTION:\nmy-app-guid.potato"))
 					Expect(clientSession.Out).To(gbytes.Say("10.11.12.13"))
-
-					Expect(recordedBasicAuthPassword).To(Equal("a-secret"))
-					Expect(recordedBasicAuthUser).To(Equal("some-client"))
 				})
 			})
 		})
@@ -177,10 +136,6 @@ var _ = Describe("AcceptanceTests", func() {
 			Entry("server", "server"),
 			Entry("ducatiSuffix", "ducatiSuffix"),
 			Entry("ducatiAPI", "ducatiAPI"),
-			Entry("ccAPI", "ccAPI"),
-			Entry("uaaClientName", "uaaClientName"),
-			Entry("uaaClientSecret", "uaaClientSecret"),
-			Entry("uaaBaseURL", "uaaBaseURL"),
 		)
 
 	})

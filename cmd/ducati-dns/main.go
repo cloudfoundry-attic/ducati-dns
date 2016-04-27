@@ -22,18 +22,6 @@ func validate(c resolver.Config) error {
 	if c.DucatiAPI == "" {
 		return errors.New("missing required arg: ducatiAPI")
 	}
-	if c.CCClientHost == "" {
-		return errors.New("missing required arg: ccAPI")
-	}
-	if c.UAAClientName == "" {
-		return errors.New("missing required arg: uaaClientName")
-	}
-	if c.UAASecret == "" {
-		return errors.New("missing required arg: uaaClientSecret")
-	}
-	if c.UAABaseURL == "" {
-		return errors.New("missing required arg: uaaBaseURL")
-	}
 
 	return nil
 }
@@ -48,11 +36,6 @@ func main() {
 	flag.StringVar(&externalDNSServer, "server", "", "Single DNS server to forward queries to")
 	flag.StringVar(&config.DucatiSuffix, "ducatiSuffix", "", "suffix for lookups on the overlay network")
 	flag.StringVar(&config.DucatiAPI, "ducatiAPI", "", "URL for the ducati API")
-	flag.StringVar(&config.CCClientHost, "ccAPI", "", "URL for the cloud controller API")
-	flag.StringVar(&config.UAABaseURL, "uaaBaseURL", "", "URL for the UAA API, e.g. https://uaa.example.com/")
-	flag.StringVar(&config.UAAClientName, "uaaClientName", "", "client name for the UAA client")
-	flag.StringVar(&config.UAASecret, "uaaClientSecret", "", "secret for the UAA client")
-	flag.BoolVar(&config.SkipSSLValidation, "skipSSLValidation", false, "skip SSL validation for UAA")
 	flag.StringVar(&listenAddress, "listenAddress", "127.0.0.1:53", "Host and port to listen for queries on")
 	flag.Parse()
 
