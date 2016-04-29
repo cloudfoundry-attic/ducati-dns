@@ -62,9 +62,17 @@ var _ = Describe("HTTPResolver", func() {
 			Class:  dns.ClassINET,
 			Ttl:    42,
 		}
-		a := &dns.A{rr_header, net.ParseIP("10.11.12.13")}
+		a := &dns.A{Hdr: rr_header, A: net.ParseIP("10.11.12.13")}
 		expectedResp.Answer = []dns.RR{a}
 		Expect(responseWriter.WriteMsgArgsForCall(0)).To(Equal(expectedResp))
+	})
+
+	It("logs the resolution", func() {
+		httpResolver.ServeDNS(responseWriter, request)
+
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("test.serve-dns.resolving.*name.*some-app-guid.potato"))
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("test.serve-dns.*10.11.12.13.*"))
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("test.serve-dns.resolve-complete"))
 	})
 
 	Context("when the requestedName does not end in the suffix", func() {

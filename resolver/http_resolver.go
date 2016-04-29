@@ -27,7 +27,7 @@ func NewHTTPResolver(logger lager.Logger, config Config) *HTTPResolver {
 		http.DefaultClient,
 	)
 	return &HTTPResolver{
-		Logger:       logger,
+		Logger:       logger.Session("http-resolver"),
 		Suffix:       config.DucatiSuffix,
 		DaemonClient: ducatiDaemonClient,
 	}
@@ -41,6 +41,10 @@ type HTTPResolver struct {
 }
 
 func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
+	logger := r.Logger.Session("serve-dns", lager.Data{"name": request.Question[0].Name})
+	logger.Info("resolving")
+	defer logger.Info("resolve-complete")
+
 	m := &dns.Msg{}
 
 	requestedName := request.Question[0].Name
@@ -87,5 +91,8 @@ func (r *HTTPResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 			},
 			A: net.ParseIP(container.IP)},
 	}
+
+	logger.Info("response", lager.Data{"answer": m.Answer})
+
 	w.WriteMsg(m)
 }

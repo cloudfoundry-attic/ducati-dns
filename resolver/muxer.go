@@ -18,7 +18,10 @@ func (m *Muxer) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 	suffix := dns.Fqdn(m.Suffix)
 	name := request.Question[0].Name
 
-	m.Logger.Info("serve-dns", lager.Data{"name": name})
+	logger := m.Logger.Session("serve-dns", lager.Data{"name": name})
+
+	logger.Info("resolving")
+	defer logger.Info("complete")
 
 	if m.Suffix != "" && strings.HasSuffix(name, suffix) {
 		m.SuffixPresentHandler.ServeDNS(w, request)

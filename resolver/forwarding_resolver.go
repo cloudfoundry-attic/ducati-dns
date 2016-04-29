@@ -23,12 +23,16 @@ type exchanger interface {
 }
 
 type ForwardingResolver struct {
+	Logger    lager.Logger
 	Exchanger exchanger
 	Server    string
-	Logger    lager.Logger
 }
 
 func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
+	logger := h.Logger.Session("serve-dns", lager.Data{"name": request.Question[0].Name})
+	logger.Info("resolving")
+	defer logger.Info("resolve-complete")
+
 	resp, _, err := h.Exchanger.Exchange(request, h.Server)
 	if err != nil {
 		h.Logger.Error("Serve DNS Exchange", err)
@@ -41,12 +45,15 @@ func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 	}
 
 	if resp == nil {
+		logger.Info("nil-response")
 		m := &dns.Msg{}
 		m.SetReply(request)
 		m.SetRcode(request, dns.RcodeNameError)
 		w.WriteMsg(m)
 		return
 	}
+
+	logger.Info("response", lager.Data{"answer": resp.Answer})
 
 	w.WriteMsg(resp)
 }

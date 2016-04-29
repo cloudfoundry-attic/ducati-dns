@@ -57,14 +57,24 @@ var _ = Describe("ForwardingResolver", func() {
 		Expect(response).To(Equal(expectedResp))
 	})
 
+	It("logs the resolution", func() {
+		forwardingResolver.ServeDNS(responseWriter, request)
+
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("serve-dns.resolving.*name.*cloudfoundry.org"))
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("serve-dns.response.*answer"))
+		Expect(fakeLogger.Buffer()).To(gbytes.Say("serve-dns.resolve-complete"))
+	})
+
 	Context("when the exchanger returns an error", func() {
 		BeforeEach(func() {
 			fakeExchanger.ExchangeReturns(nil, 0, errors.New("potato"))
 		})
+
 		It("logs the error", func() {
 			forwardingResolver.ServeDNS(responseWriter, request)
 			Expect(fakeLogger).To(gbytes.Say("test.*potato"))
 		})
+
 		It("responds with SERVFAIL", func() {
 			forwardingResolver.ServeDNS(responseWriter, request)
 			Expect(responseWriter.WriteMsgCallCount()).To(Equal(1))

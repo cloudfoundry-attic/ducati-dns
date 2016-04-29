@@ -41,7 +41,8 @@ var _ = Describe("Muxer", func() {
 		request.SetQuestion(dns.Fqdn("something.potato"), dns.TypeA)
 		muxer.ServeDNS(responseWriter, request)
 
-		Expect(fakeLogger).To(gbytes.Say("test.serve-dns"))
+		Expect(fakeLogger).To(gbytes.Say("test.serve-dns.resolving.*name.*something.potato"))
+		Expect(fakeLogger).To(gbytes.Say("test.serve-dns.complete"))
 	})
 
 	Context("when the suffix is present", func() {

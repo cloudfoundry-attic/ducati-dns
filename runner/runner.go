@@ -27,9 +27,9 @@ func New(
 	listener net.PacketConn,
 ) *Runner {
 	forwardingResolver := &resolver.ForwardingResolver{
+		Logger:    logger.Session("forwarding-resolver"),
 		Exchanger: &dns.Client{Net: "udp"},
 		Server:    externalDNSServer,
-		Logger:    logger,
 	}
 
 	httpResolver := resolver.NewHTTPResolver(logger, config)
