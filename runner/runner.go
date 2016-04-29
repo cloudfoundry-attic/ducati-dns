@@ -25,6 +25,7 @@ func New(
 	config resolver.Config,
 	externalDNSServer string,
 	listener net.PacketConn,
+	decorateWriter dns.DecorateWriter,
 ) *Runner {
 	forwardingResolver := &resolver.ForwardingResolver{
 		Logger:    logger.Session("forwarding-resolver"),
@@ -43,8 +44,9 @@ func New(
 
 	dnsRunner := &Runner{
 		DNSServer: &dns.Server{
-			PacketConn: listener,
-			Handler:    resolverMuxer,
+			PacketConn:     listener,
+			Handler:        resolverMuxer,
+			DecorateWriter: decorateWriter,
 		},
 	}
 

@@ -60,7 +60,7 @@ func main() {
 	}
 	defer udpConn.Close()
 
-	dnsRunner := runner.New(logger, config, externalDNSServer, udpConn)
+	dnsRunner := runner.New(logger, config, externalDNSServer, udpConn, nil)
 
 	members := grouper.Members{
 		{"dns_runner", dnsRunner},
