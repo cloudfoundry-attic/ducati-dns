@@ -25,6 +25,7 @@ var _ = Describe("AcceptanceTests", func() {
 		listenPort = strconv.Itoa(11999 + GinkgoParallelNode())
 		mockDucatiAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/containers" {
+				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(`[{"app": "my-app-guid", "IP": "10.11.12.13"}]`))
 				return
