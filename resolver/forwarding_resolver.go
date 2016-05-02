@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -33,9 +35,16 @@ func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 	logger.Info("resolving")
 	defer logger.Info("resolve-complete")
 
+	output, err := exec.Command("stat", "-L", "-c", "%i", "/proc/self/ns/net").CombinedOutput()
+	if err != nil {
+		logger.Error("stat", err)
+	} else {
+		logger.Info("inode", lager.Data{"namespace": strings.TrimSpace(string(output))})
+	}
+
 	resp, _, err := h.Exchanger.Exchange(request, h.Server)
 	if err != nil {
-		h.Logger.Error("Serve DNS Exchange", err)
+		h.Logger.Error("exchange", err)
 
 		m := &dns.Msg{}
 		m.SetReply(request)
