@@ -35,7 +35,7 @@ func (h *ForwardingResolver) ServeDNS(w dns.ResponseWriter, request *dns.Msg) {
 
 	resp, _, err := h.Exchanger.Exchange(request, h.Server)
 	if err != nil {
-		h.Logger.Error("Serve DNS Exchange", err)
+		h.Logger.Error("exchange-failed", err)
 
 		m := &dns.Msg{}
 		m.SetReply(request)

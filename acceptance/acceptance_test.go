@@ -173,7 +173,7 @@ var _ = Describe("AcceptanceTests", func() {
 
 			// server is still up
 			Consistently(serverSession).ShouldNot(gexec.Exit())
-			Expect(serverSession.Out.Contents()).To(ContainSubstring("Serve DNS Exchange"))
+			Expect(serverSession.Out.Contents()).To(ContainSubstring("exchange-failed"))
 		})
 	})
 })
